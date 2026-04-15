@@ -1,0 +1,164 @@
+package Ventas;
+
+import java.io.*;
+import java.util.*;
+
+public class Main {
+
+    public static void main(String[] args) {
+
+        try {
+
+            // Mostrar ruta donde se ejecuta el programa
+            System.out.println("Ruta actual: " + new File(".").getAbsolutePath());
+
+            Map<Integer, String> nombresProductos = new HashMap<>();
+            Map<Integer, Integer> preciosProductos = new HashMap<>();
+
+            Map<String, Integer> ventasPorVendedor = new HashMap<>();
+            Map<Integer, Integer> productosVendidos = new HashMap<>();
+
+            // =========================
+            // 1. LEER PRODUCTOS
+            // =========================
+            BufferedReader br = new BufferedReader(new FileReader("productos.txt"));
+            String linea;
+
+            while ((linea = br.readLine()) != null) {
+                try {
+                    String[] p = linea.split(";");
+
+                    int id = Integer.parseInt(p[0]);
+                    String nombre = p[1];
+                    int precio = Integer.parseInt(p[2]);
+
+                    if (precio < 0) throw new Exception();
+
+                    nombresProductos.put(id, nombre);
+                    preciosProductos.put(id, precio);
+
+                } catch (Exception e) {
+                    System.out.println("❌ Error en producto: " + linea);
+                }
+            }
+            br.close();
+
+            // =========================
+            // 2. LEER VENDEDORES
+            // =========================
+            br = new BufferedReader(new FileReader("vendedores.txt"));
+
+            while ((linea = br.readLine()) != null) {
+                String[] p = linea.split(";");
+                String nombre = p[2];
+
+                ventasPorVendedor.put(nombre, 0);
+            }
+            br.close();
+
+            // =========================
+            // 3. PROCESAR ARCHIVOS DE VENTAS
+            // =========================
+            File carpeta = new File(".");
+
+            for (File archivo : carpeta.listFiles()) {
+
+                if (archivo.getName().startsWith("ventas_")) {
+
+                    try (BufferedReader brVentas = new BufferedReader(new FileReader(archivo))) {
+
+                        brVentas.readLine(); // saltar encabezado
+
+                        String nombreVendedor = archivo.getName().split("_")[1].replace(".txt", "");
+
+                        if (!ventasPorVendedor.containsKey(nombreVendedor)) continue;
+
+                        int total = ventasPorVendedor.get(nombreVendedor);
+
+                        String lineaVenta;
+
+                        while ((lineaVenta = brVentas.readLine()) != null) {
+
+                            try {
+                                String[] p = lineaVenta.split(";");
+
+                                int idProducto = Integer.parseInt(p[0]);
+                                int cantidad = Integer.parseInt(p[1]);
+
+                                if (cantidad <= 0) throw new Exception();
+                                if (!preciosProductos.containsKey(idProducto)) throw new Exception();
+
+                                int precio = preciosProductos.get(idProducto);
+
+                                total += cantidad * precio;
+
+                                productosVendidos.put(idProducto,
+                                        productosVendidos.getOrDefault(idProducto, 0) + cantidad);
+
+                            } catch (Exception e) {
+                                System.out.println("❌ Error en venta: " + lineaVenta + " en " + archivo.getName());
+                            }
+                        }
+
+                        ventasPorVendedor.put(nombreVendedor, total);
+
+                    } catch (Exception e) {
+                        System.out.println("❌ Error leyendo archivo: " + archivo.getName());
+                    }
+                }
+            }
+
+            // =========================
+            // 4. CREAR CARPETA REPORTES
+            // =========================
+            new File("reportes").mkdirs();
+
+            // =========================
+            // 5. REPORTE VENDEDORES
+            // =========================
+            List<Map.Entry<String, Integer>> listaVendedores =
+                    new ArrayList<>(ventasPorVendedor.entrySet());
+
+            listaVendedores.sort((a, b) -> Integer.compare(b.getValue(), a.getValue()));
+
+            BufferedWriter writerVendedores =
+                    new BufferedWriter(new FileWriter("reportes/reporte_vendedores.csv"));
+
+            for (Map.Entry<String, Integer> v : listaVendedores) {
+                writerVendedores.write(v.getKey() + ";" + v.getValue());
+                writerVendedores.newLine();
+            }
+
+            writerVendedores.close();
+
+            // =========================
+            // 6. REPORTE PRODUCTOS (CORREGIDO)
+            // =========================
+            List<Map.Entry<Integer, Integer>> listaProductos =
+                    new ArrayList<>(productosVendidos.entrySet());
+
+            listaProductos.sort((a, b) -> Integer.compare(b.getValue(), a.getValue()));
+
+            BufferedWriter writerProductos =
+                    new BufferedWriter(new FileWriter("reportes/reporte_productos.csv"));
+
+            for (Map.Entry<Integer, Integer> p : listaProductos) {
+
+                int id = p.getKey();
+                String nombre = nombresProductos.get(id);
+                int precio = preciosProductos.get(id);
+                int cantidad = p.getValue(); // 
+
+                writerProductos.write(nombre + ";" + precio + ";" + cantidad);
+                writerProductos.newLine();
+            }
+
+            writerProductos.close();
+
+            System.out.println("✅ REPORTES GENERADOS EN CARPETA 'reportes'");
+
+        } catch (Exception e) {
+            System.out.println("❌ Error general en el sistema");
+            e.printStackTrace();
+        }
+    }
